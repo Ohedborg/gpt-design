@@ -1,0 +1,19 @@
+{
+  "guide": {
+    "summary": "A base design system bridging Figma and React code.",
+    "description": "Simple Design System (SDS) shows how Figma variables, styles, components and Code Connect map to a React codebase. This saved snapshot includes the original tokens and component stories, with local guidance and editable token values.",
+    "principles": "Use existing SDS components and their supported props. Check the source example before composing a new interface.\n\nUse semantic SDS variables for colors, typography, spacing, radii and shadows. Propose a named token when the system is missing a value.\n\nUse Section, Flex and Grid for layout. Compose existing primitives before adding new patterns.\n\nKeep component behavior honest: names, variants and states should match the React source. Preview light and dark themes and test keyboard interactions.\n\nUse ButtonDanger for destructive actions. Give icon-only actions accessible names and fields visible labels.",
+    "sources": [
+      "README.md",
+      "src/AGENTS.md",
+      "src/ui/primitives/Button/Button.tsx"
+    ],
+    "editedLocally": false
+  },
+  "componentNotes": {
+    "src/stories/primitives/Button.stories.tsx#StoryButton": "Use primary for the main action, neutral for secondary actions and subtle for lower emphasis. Sizes: small or medium. Use ButtonDanger for destructive actions. Children supply the label and icons. The component delegates interactions to React Aria: use onPress for button actions. Supplying href renders a link.",
+    "src/stories/primitives/Button.stories.tsx#StoryButtonDanger": "For destructive actions only. Choose danger-primary or danger-subtle; use small or medium sizing. Provide a clear action label.",
+    "src/stories/primitives/Button.stories.tsx#StoryButtonGroup": "Group related actions with align: start, end, center, justify or stack. Inspect the source story for composition.",
+    "src/stories/primitives/Input.stories.tsx#StoryInputField": "Use a visible label and helpful description. Explore disabled and required states in the controls. The preview is an interactive example; it does not submit data."
+  }
+}

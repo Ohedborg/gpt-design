@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "systems": [
+    {
+      "id": "602d3a7cd1314732bfd4cb6678fb08d9",
+      "name": "Simple Design System",
+      "path": "design-systems/simple-design-system-602d3a7c",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "archive": "design-systems/simple-design-system-602d3a7c/releases/1.zip",
+          "sha256": "0dab49347ebca8f73853938648947a80e2dd71ea2be24927af29ea4f34c096ae",
+          "publishedAt": "2026-11-13T13:34:00.020058+00:00",
+          "notes": "updated color"
+        }
+      ]
+    }
+  ],
+  "updatedAt": "2026-11-13T14:48:28.000129+00:00"
+}
