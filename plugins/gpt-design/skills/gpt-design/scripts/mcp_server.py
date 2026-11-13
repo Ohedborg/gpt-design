@@ -14,7 +14,7 @@ from http.server import ThreadingHTTPServer
 
 import gpt_design as gd
 
-VERSION = '0.6.1'
+VERSION = '0.6.2'
 URI = 'ui://gpt-design/studio.html'
 MIME = 'text/html;profile=mcp-app'
 ROOT = Path(__file__).resolve().parents[3]
@@ -40,6 +40,8 @@ TOOLS = [
     tool('open_studio', 'GPT Design', 'Open GPT Design. With multiple systems, ask which to use unless already explicitly selected for this task. Pass that ID as system_id; otherwise show the chooser. Never infer from recency. Opening checks for GitHub updates and retries already queued initial uploads.', schema({'system_id': ID}), read=False, network=True),
     tool('get_file', 'Read a source file', 'Read a preserved source, guideline or asset file from the selected design system.', schema({'id': ID, 'path': {'type':'string'}, 'version': RELEASE_VERSION}, ['id','path'])),
     tool('get_preview', 'Load component playground', 'Read the compiled, isolated component playground for a design system.', schema({'id': ID, 'version': RELEASE_VERSION}, ['id'])),
+    tool('rename_system', 'Rename a design system', 'Update the library display name immediately, including GitHub when shared. Preserve system ID, repository folder and immutable releases. Read the current draft revision first.', schema({'id':ID,'payload':PAYLOAD}, ['id','payload']), read=False, network=True),
+    tool('delete_system', 'Delete a design system', 'Remove an explicitly selected design system from the library and GitHub catalog for everyone. Preserve its local draft in trash and published archives. Requires explicit deletion intent and payload {revision, confirmName} matching its current name.', schema({'id':ID,'payload':PAYLOAD}, ['id','payload']), read=False, destructive=True, network=True),
     tool('maintain_system', 'Maintain design-system guidance', 'Save overview, component usage notes or a new token locally with revision history.', schema({'id': ID, 'payload': PAYLOAD}, ['id','payload']), read=False),
     tool('list_releases', 'Version history', 'List immutable local design-system publications, separate from plugin versions.', schema({'id': ID}, ['id'])),
     tool('get_release', 'Read a published design system', 'Read an immutable publication or its exports. Use published versions when consuming a design system.', schema({'id': ID, 'version': RELEASE_VERSION, 'file': {'type':'string','enum':['system.json','tokens.json','tokens.css']}}, ['id','version'])),
@@ -129,6 +131,8 @@ class Studio:
                 result['selectedSystemId'] = ident
                 result['selectionRequired'] = ident is None and len(result['systems']) > 1
             return result
+        if name in {'rename_system','delete_system'}:
+            return self.request('/api/systems/'+args['id']+'/'+name.removesuffix('_system'), args['payload'])
         if name == 'share_publication':
             return self.request('/api/systems/'+args['id']+'/share', {'revision':args['revision']})
         if name == 'library_status':

@@ -27,7 +27,7 @@ import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = '0.6.1'
+VERSION = '0.6.2'
 GROUPS = {'colors', 'spacing', 'assets', 'components'}
 IGNORED = {'.git', '.next', '.codex', '.agents', 'node_modules', 'dist', 'build', '.cache', '__pycache__', '.venv', 'venv'}
 ASSETS = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.pdf'}
@@ -494,6 +494,10 @@ def handler_for(data, allowed, token):
                 share=re.fullmatch(r'/api/systems/([0-9a-f]{32})/share',self.path)
                 if share:
                     return self.reply(200,github_library.share_publication(data,share[1],payload.get('revision')))
+                management = re.fullmatch(r'/api/systems/([0-9a-f]{32})/(rename|delete)', self.path)
+                if management:
+                    import system_management
+                    return self.reply(200, system_management.manage(data, management[1], management[2], payload))
                 publication = re.fullmatch(r'/api/systems/([0-9a-f]{32})/publish', self.path)
                 if publication:
                     return self.reply(200, releases.publish(data, publication[1], payload))

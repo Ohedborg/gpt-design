@@ -29,7 +29,7 @@
   if(message.method === 'ui/resource-teardown' && message.id !== undefined) post({jsonrpc:'2.0',id:message.id,result:{}});
  });
  const ready = request('ui/initialize', {
-  protocolVersion:'2026-01-26', appInfo:{name:'GPT Design',version:'0.6.1'},
+  protocolVersion:'2026-01-26', appInfo:{name:'GPT Design',version:'0.6.2'},
   appCapabilities:{availableDisplayModes:['inline','fullscreen']}
  }, 20000).then(result => {
   post({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}});
@@ -48,6 +48,8 @@
    if(path === '/api/github/connect') return call('connect_library',{payload});
    if(path === '/api/github/sync') return call('sync_library');
    if(path === '/api/github/disconnect') return call('disconnect_library');
+   const management=/^\/api\/systems\/([a-f0-9]{32})\/(rename|delete)$/.exec(path);
+   if(management) return call(management[2]+'_system',{id:management[1],payload});
    const share=/^\/api\/systems\/([a-f0-9]{32})\/share$/.exec(path);
    if(share) return call('share_publication',{id:share[1],revision:payload.revision});
    const latest=/^\/api\/systems\/([a-f0-9]{32})\/start-from-latest$/.exec(path);

@@ -39,6 +39,16 @@ class MCPTests(unittest.TestCase):
     def call(self, name, args=None):
         return self.rpc('tools/call', {'name':name, 'arguments':args or {}})
 
+    def test_rename_and_delete_through_tools(self):
+        system=self.call('import_system',{'payload':{'kind':'local','name':'Manage fixture','path':str(ROOT/'examples/starter')}})['structuredContent']
+        result=self.call('rename_system',{'id':system['id'],'payload':{'revision':system['revision'],'name':'Renamed fixture'}})['structuredContent']['system']
+        self.assertEqual(result['name'],'Renamed fixture')
+        rejected=self.call('delete_system',{'id':system['id'],'payload':{'revision':result['revision'],'confirmName':'wrong'}})
+        self.assertTrue(rejected['isError'])
+        removed=self.call('delete_system',{'id':system['id'],'payload':{'revision':result['revision'],'confirmName':result['name']}})['structuredContent']
+        self.assertEqual(removed['deleted'],system['id'])
+        self.assertEqual(self.call('list_systems')['structuredContent']['systems'],[])
+
     def test_removed_imports_cannot_create_snapshots_or_requests(self):
         files=[{'name':'library.fig','content':base64.b64encode(b'fig-kiwi').decode()}]
         for kind in ('figma-file','upload','connector'):

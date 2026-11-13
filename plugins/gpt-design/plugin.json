@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "gpt-design",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Import design systems from GitHub, local folders or files and reuse their tokens, assets and component source.",
   "author": {
     "name": "PK Hedborg"

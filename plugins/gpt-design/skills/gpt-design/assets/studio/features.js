@@ -141,6 +141,7 @@ function mountPublishing(){
   const share=document.createElement('button');share.className='button small';share.textContent='Back up to GitHub';share.onclick=async()=>{if(!canLeaveWorkspace())return;share.disabled=true;try{const draft=await api('/api/systems/'+current.id);await api('/api/systems/'+current.id+'/share',{revision:draft.revision||0});await refresh();current=await loadSystemForViewing(current.id);detail();toast('Published versions backed up to GitHub');}catch(e){toast(e.message);share.disabled=false;}};bar.append(share);
  }
  if(current._access?.canPublish===false){$('#openDraft')?.remove();$('#publishDraft')?.remove();}
+ const manage=document.createElement('button');manage.className='icon-button';manage.title='Manage design system';manage.setAttribute('aria-label','Manage design system');manage.textContent='•••';manage.onclick=()=>manageDesignSystem(current.id);actions.append(manage);
  const connection=document.createElement('button');connection.className='icon-button';connection.title='GitHub library';connection.setAttribute('aria-label','GitHub library');connection.innerHTML=icon('global');connection.onclick=showGitHubLibrary;actions.append(connection);
  if(!release&&current.shared&&current.shared.baseVersion!==current.shared.latestVersion){
   const latest=document.createElement('button');latest.className='button small';latest.textContent='Start from latest';latest.title='Back up this draft and start from the latest published version';latest.onclick=async()=>{if(!canLeaveWorkspace())return;try{const result=await api('/api/systems/'+current.id+'/start-from-latest',{revision:current.revision||0});current=result.system;previewCache.clear();detail();toast('Previous draft backed up. Now editing the latest publication.');}catch(e){toast(e.message);}};bar.append(latest);$('#publishDraft')?.setAttribute('disabled','');
@@ -192,3 +193,35 @@ function renderFigmaComponents(){
  $('#figComponentFilter').oninput=e=>draw(e.target.value);draw();
 }
 function figPropertyDefault(value){if(!value)return 'Not specified';if('boolValue' in value)return String(value.boolValue);if(value.textValue?.characters!==undefined)return value.textValue.characters;if(value.textValue?.text!==undefined)return value.textValue.text;return JSON.stringify(value);}
+
+
+async function manageDesignSystem(id){
+ if(!canLeaveWorkspace())return;
+ try{
+  const draft=await api('/api/systems/'+id);
+  const shared=!!(draft.shared||draft.pendingUpload),canManage=!shared||draft._access?.canPublish!==false;
+  const d=featureDialog('Manage design system',`<form id="renameSystemForm"><label class="field">Name<input id="systemName" maxlength="120" required value="${escape(draft.name)}"></label><p class="management-note">${shared?'The name updates for everyone in the shared library.':'Update the name shown in your library.'} Saved versions and the original source stay intact.</p><div class="actions"><button class="button primary" id="saveSystemName">Save name</button></div></form><div class="management-delete"><h3>Delete design system</h3><p class="management-note">${shared?'Remove this system from the shared library for everyone.':'Remove this system from your library.'} A local recovery copy is kept, including saved drafts.${shared?' Published archives stay in GitHub.':''}</p><button class="button danger" id="deleteSystemPrompt">Delete design system…</button></div><p class="management-error" id="managementError" role="alert" hidden></p>${canManage?'':'<p class="management-note">Connect with repository write access to manage this shared system.</p>'}`);
+  $('#systemName').disabled=!canManage;$('#saveSystemName').disabled=!canManage;$('#deleteSystemPrompt').disabled=!canManage;
+  const failure=e=>{const el=$('#managementError');el.hidden=false;el.textContent=e.message;};
+  $('#renameSystemForm').onsubmit=async e=>{
+   e.preventDefault();const button=$('#saveSystemName');button.disabled=true;
+   try{
+    const result=await api('/api/systems/'+id+'/rename',{revision:draft.revision||0,name:$('#systemName').value});
+    await refresh();d.close();
+    if(document.body.classList.contains('workspace-mode')&&current?.id===id){current=current._release?{...current,name:result.system.name}:result.system;detail();}else showLibrary();
+    toast(shared?'Name updated in the shared library':'Design system renamed');
+   }catch(err){failure(err);button.disabled=false;}
+  };
+  $('#deleteSystemPrompt').onclick=()=>{
+   d.close();
+   const confirm=featureDialog('Delete '+draft.name+'?',`<p class="management-note">${shared?'This removes the design system from the shared library for everyone.':'This removes the design system from your library.'} Your saved draft and versions are kept in a recovery copy.</p><form id="deleteSystemForm"><label class="field">Type <strong>${escape(draft.name)}</strong> to confirm<input id="confirmSystemName" autocomplete="off" required></label><div class="actions"><button type="button" class="button" id="cancelSystemDelete">Cancel</button><button class="button danger" id="confirmSystemDelete" disabled>Delete design system</button></div></form><p class="management-error" id="managementError" role="alert" hidden></p>`);
+   $('#cancelSystemDelete').onclick=()=>confirm.close();
+   $('#confirmSystemName').oninput=()=>{$('#confirmSystemDelete').disabled=$('#confirmSystemName').value!==draft.name;};
+   $('#deleteSystemForm').onsubmit=async e=>{
+    e.preventDefault();const button=$('#confirmSystemDelete');button.disabled=true;button.textContent='Deleting…';
+    try{await api('/api/systems/'+id+'/delete',{revision:draft.revision||0,confirmName:$('#confirmSystemName').value});if(current?.id===id){current=null;edits.clear();guidanceDirty=false;previewCache.clear();}await refresh();confirm.close();showLibrary();toast('Design system deleted. A recovery copy has been kept.');}
+    catch(err){failure(err);button.disabled=false;button.textContent='Delete design system';}
+   };
+  };
+ }catch(e){toast(e.message);}
+}

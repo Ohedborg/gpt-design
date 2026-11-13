@@ -196,7 +196,7 @@ class GitHub:
 
 
 def fingerprint(system):
-    content = {k:v for k,v in system.items() if k not in {'revision','updatedAt','publication','shared','pendingUpload','_release','_access','status'}}
+    content = {k:v for k,v in system.items() if k not in {'name','revision','updatedAt','publication','shared','pendingUpload','_release','_access','status'}}
     return hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False, allow_nan=False).encode()).hexdigest()
 
 
@@ -210,7 +210,12 @@ def catalog_at(client, cfg, head):
     if not isinstance(catalog,dict) or catalog.get('schemaVersion')!=1 or not isinstance(catalog.get('systems'),list) or len(catalog['systems'])>1000:
         raise ValueError('This folder is not a supported GPT Design library.')
     ids, paths = set(), set()
-    for s in catalog['systems']:
+    deleted = catalog.get('deletedSystems', [])
+    if not isinstance(deleted, list) or len(deleted)>1000:
+        raise ValueError('Invalid deleted design-system history.')
+    if any(not isinstance(s,dict) or not isinstance(s.get('deletedAt'),str) for s in deleted):
+        raise ValueError('Invalid deleted design-system entry.')
+    for s in catalog['systems'] + deleted:
         if not isinstance(s,dict) or not re.fullmatch('[a-f0-9]{32}',s.get('id','')) or s['id'] in ids or not isinstance(s.get('name'),str):
             raise ValueError('Invalid design-system entry in the GitHub catalog.')
         ids.add(s['id'])
@@ -299,6 +304,10 @@ def publication_context(data, original, client_factory=None):
     client=require_write(data,original,client_factory)
     head=client.head(cfg['branch']);catalog=catalog_at(client,cfg,head)
     remote=next((s for s in catalog['systems'] if s['id']==original['id']),None)
+    if any(s['id']==original['id'] for s in catalog.get('deletedSystems', [])):
+        raise ValueError('This design system was deleted from the shared library. Refresh the library before continuing.')
+    if remote and original.get('shared') and remote['name']!=original['name']:
+        raise ValueError('This design system was renamed on GitHub. Refresh the library before publishing.')
     shared=original.get('shared')
     pending=original.get('pendingUpload')
     recovered=False
@@ -311,7 +320,7 @@ def publication_context(data, original, client_factory=None):
         raise ValueError('A newer version is on GitHub. Sync, then use “Start from latest” before publishing; your draft will be backed up.')
     if shared and not remote:
         raise ValueError('This shared system is missing from GitHub. Reconnect or restore the repository before publishing.')
-    return {'config':cfg,'client':client,'head':head,'catalog':catalog,'remote':remote,'author':client.identity()}
+    return {'config':cfg,'client':client,'head':head,'catalog':catalog,'remote':remote,'author':client.identity(),'name':original['name']}
 
 
 def pack(folder):
@@ -385,15 +394,17 @@ def publish_prepared(data, ident, stage, snapshot, manifest, context):
         versions.append({'version':info['version'],'archive':archive,'sha256':hashlib.sha256(raw).hexdigest(),
                          'publishedAt':info['publishedAt'],'notes':info['notes']})
         files[archive]=raw
-    entry={'id':ident,'name':snapshot['name'],'path':path,'version':manifest['version'],
+    library_name=context.get('name', snapshot['name'])
+    entry={'id':ident,'name':library_name,'path':path,'version':manifest['version'],
            'versions':sorted(versions,key=lambda v:v['version'])}
     catalog['systems']=[s for s in catalog['systems'] if s['id']!=ident]+[entry]
     catalog['updatedAt']=now()
     files[cfg['folder']+'/catalog.json']=encoded(catalog)
     for name in ['system.json','tokens.json','tokens.css']:
         files[path+'/'+name]=(stage/name).read_bytes()
+    files[path+'/system.json']=encoded({**snapshot, 'name':library_name})
     files[path+'/guidelines.json']=encoded({'guide':snapshot.get('guide',{}),'componentNotes':snapshot.get('componentNotes',{})})
-    files[path+'/README.md']=('# '+snapshot['name']+'\n\nPublished version '+str(manifest['version'])+'\n\n'+manifest['notes']+'\n\nFull source, assets and previews are preserved in each release archive.\n').encode()
+    files[path+'/README.md']=('# '+library_name+'\n\nPublished version '+str(manifest['version'])+'\n\n'+manifest['notes']+'\n\nFull source, assets and previews are preserved in each release archive.\n').encode()
     commit=context['client'].commit(context['head'],cfg['branch'],files,'Publish '+snapshot['name']+' v'+str(manifest['version']))
     cfg.update(lastHead=commit,lastSyncedAt=now(),lastCheck=time.time(),canWrite=True,error=None)
     atomic_json(data/CONFIG,cfg)
@@ -448,7 +459,11 @@ def retry_uploads(data, ident=None, force=False):
     errors=[];pending=0
     paths=[data/'systems'/ident/'system.json'] if ident else sorted((data/'systems').glob('*/system.json'))
     for path in paths:
-        system=json.loads(path.read_text());upload=system.get('pendingUpload')
+        try:
+            system=json.loads(path.read_text())
+        except FileNotFoundError:
+            continue
+        upload=system.get('pendingUpload')
         if not upload:
             continue
         if not force and time.time()-upload.get('lastAttempt',0)<60:
@@ -459,12 +474,15 @@ def retry_uploads(data, ident=None, force=False):
             share_publication(data,system['id'],system.get('revision',0))
         except (ValueError,OSError,zipfile.BadZipFile) as exc:
             message=str(exc)[:400]
-            with library_lock(data),gd.system_lock(path.parent):
-                latest=json.loads(path.read_text())
-                if latest.get('pendingUpload'):
-                    latest['pendingUpload'].update(lastAttempt=time.time(),error=message)
-                    atomic_json(path,latest)
-                    pending+=1;errors.append(latest['name']+': '+message)
+            with library_lock(data):
+                if not path.is_file():
+                    continue
+                with gd.system_lock(path.parent):
+                    latest=json.loads(path.read_text())
+                    if latest.get('pendingUpload'):
+                        latest['pendingUpload'].update(lastAttempt=time.time(),error=message)
+                        atomic_json(path,latest)
+                        pending+=1;errors.append(latest['name']+': '+message)
     return pending,errors
 
 
@@ -507,7 +525,20 @@ def sync(data, force=False, client_factory=None):
             client=client_factory(cfg['repository']);meta=client.metadata();head=client.head(cfg['branch'])
             cfg['canWrite']=bool(meta.get('permissions',{}).get('push'))
             catalog=catalog_at(client,cfg,head)
-            updated=[];conflicts=[]
+            updated=[];conflicts=[];deleted=[]
+            from system_management import archive_local
+            for entry in catalog.get('deletedSystems', []):
+                target=data/'systems'/entry['id']
+                if target.is_symlink():
+                    raise ValueError('A cached system cannot be a symbolic link.')
+                if not (target/'system.json').is_file():
+                    continue
+                with gd.system_lock(target):
+                    old=json.loads((target/'system.json').read_text())
+                    binding=old.get('shared') or old.get('pendingUpload')
+                    if binding and all(binding.get(k)==cfg[k] for k in ['repository','branch','folder']):
+                        archive_local(data,target,entry['deletedAt'])
+                        deleted.append(entry['id'])
             for entry in catalog['systems']:
                 target=data/'systems'/entry['id']
                 if target.is_symlink() or (target/'releases').is_symlink():
@@ -542,6 +573,10 @@ def sync(data, force=False, client_factory=None):
                     latest=releases/str(entry['version'])
                     snapshot=json.loads((latest/'system.json').read_text());release=json.loads((latest/'release.json').read_text())
                     clean=old is None or fingerprint(old)==old['shared'].get('baseFingerprint')
+                    # Older clients included the display name in their fingerprint.
+                    if old and not clean:
+                        base=target/'releases'/str(old['shared'].get('baseVersion'))/'system.json'
+                        clean=base.is_file() and fingerprint(old)==fingerprint(json.loads(base.read_text()))
                     previous=old.get('shared',{}).get('latestVersion') if old else None
                     binding={k:cfg[k] for k in ['repository','branch','folder']} | {'path':entry['path'],'latestVersion':entry['version'],'commit':head}
                     if old is None or clean and previous!=entry['version']:
@@ -555,13 +590,17 @@ def sync(data, force=False, client_factory=None):
                         system=copy.deepcopy(old)
                         binding.update(baseVersion=old['shared']['baseVersion'],baseFingerprint=old['shared']['baseFingerprint'])
                         if binding['baseVersion']!=entry['version']: conflicts.append(entry['id'])
+                    if system['name']!=entry['name']:
+                        system['name']=entry['name']
+                        system['revision']=max(system.get('revision',0),old.get('revision',0) if old else 0)+1
+                        if entry['id'] not in updated: updated.append(entry['id'])
                     system['shared']=binding
                     system['publication']={k:release[k] for k in ['version','notes','publishedAt','sourceRevision','rollbackOf']}
                     atomic_json(target/'system.json',system)
             cfg.update(lastHead=head,lastSyncedAt=now(),lastCheck=time.time(),pendingUploads=pending,
                        error=('Waiting to upload '+str(pending)+' system(s). '+upload_errors[0])[:500] if upload_errors else None)
             atomic_json(data/CONFIG,cfg)
-            return public_status(cfg) | {'updated':updated,'draftsBehind':conflicts}
+            return public_status(cfg) | {'updated':updated,'draftsBehind':conflicts,'deleted':deleted}
         except (ValueError,OSError,zipfile.BadZipFile,KeyError,TypeError) as exc:
             cfg.update(lastCheck=time.time(),error=str(exc)[:500])
             if isinstance(exc,GitHubError) and exc.status in {401,403,404}:
@@ -584,6 +623,7 @@ def start_from_latest(data, ident, revision, client_factory=None):
             latest=target/'releases'/str(old['shared']['latestVersion'])
             backup=backup_draft(target);copy_snapshot(latest,target)
             system=json.loads((latest/'system.json').read_text())
+            system['name']=old['name']
             system['revision']=old.get('revision',0)+1
             system['publication']=old['publication']
             system['shared']={**old['shared'],'baseVersion':old['shared']['latestVersion'],'baseFingerprint':fingerprint(system)}

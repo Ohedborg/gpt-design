@@ -1,4 +1,4 @@
-# GPT Design — v0.6.1
+# GPT Design — v0.6.2
 
 A personal Codex design-system studio with imports, live component exploration, editable guidelines and independent design-system publications. It is not a full canvas editor or a hosted multiuser service.
 
@@ -60,3 +60,12 @@ Data layout:
 - `releases/<number>/` — immutable publication snapshots, release notes and file hashes.
 
 The server binds only to loopback, checks session tokens, request origins and allowed import roots, and rejects stale writes. Shared mutations check GitHub repository write access; local ownership is not ChatGPT workspace role enforcement. GPT Design is the user's custom plugin name, with no claim of official OpenAI or Anthropic authorship.
+
+
+## Manage a design system
+
+Use the **•••** control on a library card or in the open system’s header. **Save name** updates the library identity immediately, including the GitHub catalog for shared systems. The system ID, repository folder and published archives stay unchanged. Published views use the current library name; their archived content remains immutable. Edit the introduction, description and principles under **Edit draft → Guidelines**, then publish to share those content changes.
+
+**Delete design system** requires typing its current name. A shared deletion removes its entry from the active GitHub catalog, records it in `deletedSystems`, and marks its folder as removed. Other installations remove their matching cached system on the next automatic check. Existing archives remain available for recovery. The full local system, including unpublished drafts, moves to `library/trash/<id>-<unique-suffix>/`; it is not permanently erased. Pending initial uploads are cancelled and deleted systems cannot be republished by a stale client using this version.
+
+Only repository writers can rename or delete a shared system. A failed or conflicting GitHub write leaves the local system in place. Local-only systems can be managed without GitHub. Recovery is currently an administrator operation: restore the saved folder from `trash` for a local system; for a shared system, restore its catalog entry from `deletedSystems` in a new GitHub commit, preserving existing archives and checksums. There is no automatic trash purge.

@@ -40,6 +40,7 @@ def read(data, ident, version, file='system.json'):
         system = json.loads((target / file).read_text())
         system['_release'] = json.loads((target / 'release.json').read_text())
         draft=json.loads((f.target_for(data,ident)/'system.json').read_text())
+        system['name']=draft['name']
         if draft.get('shared'): system['shared']=draft['shared']
         if draft.get('pendingUpload'): system['pendingUpload']=draft['pendingUpload']
         return shared.access(data,system)
@@ -70,6 +71,7 @@ def publish(data, ident, payload, *, initial_connection=None):
             raise ValueError('Choose publish or rollback.')
         source = release_path(data, ident, payload.get('version')) if action == 'rollback' else target
         snapshot = json.loads((source / 'system.json').read_text())
+        snapshot['name'] = original['name']
         existing = history(data, ident)['releases']
         number = max([r['version'] for r in existing] or [0]) + 1
         parent = target / 'releases'
