@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review with GPT Design"
+  short_description: "Review designs against the published design system"
+  default_prompt: "Use $gpt-design-review to review this design against my published design system."

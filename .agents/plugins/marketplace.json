@@ -1,0 +1,10 @@
+{
+  "name": "pk-design-tools",
+  "interface": { "displayName": "PK Design Tools" },
+  "plugins": [{
+    "name": "gpt-design",
+    "source": { "source": "local", "path": "./plugins/gpt-design" },
+    "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+    "category": "Productivity"
+  }]
+}

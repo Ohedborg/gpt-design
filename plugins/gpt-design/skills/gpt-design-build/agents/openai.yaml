@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build with GPT Design"
+  short_description: "Build from published tokens, components and guidelines"
+  default_prompt: "Use $gpt-design-build to build a page using my published design system."

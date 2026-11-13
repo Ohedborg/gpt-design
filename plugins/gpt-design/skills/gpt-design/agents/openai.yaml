@@ -1,0 +1,4 @@
+interface:
+  display_name: "GPT Design"
+  short_description: "Import design systems and create with them"
+  default_prompt: "Use $gpt-design to open my studio and add a design system."

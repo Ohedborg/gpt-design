@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintain GPT Design"
+  short_description: "Maintain drafts, publish versions and restore releases"
+  default_prompt: "Use $gpt-design-maintain to help me maintain and publish my design system."

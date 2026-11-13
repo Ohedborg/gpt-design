@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "gpt-design": {
+      "command": "python3",
+      "args": [
+        "${PLUGIN_ROOT}/skills/gpt-design/scripts/mcp_server.py"
+      ],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

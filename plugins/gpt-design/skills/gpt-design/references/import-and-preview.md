@@ -1,0 +1,15 @@
+# Import coverage and previews
+
+The static scanner reads CSS/SCSS custom properties and nested DTCG-style or legacy JSON `{value,type}` tokens. It retains file paths, CSS selector context, declaration order, and JSON aliases. It does not evaluate Tailwind JS/TS, Sass functions, CSS imports, or component code. Unknown JSON without token leaves is not a palette. Category inference is marked; review it against source intent.
+
+CSS export emits only safe scalar custom properties with original selectors, or `:root` for JSON tokens. It includes source comments. Complex JSON values and unresolved aliases remain in JSON and are counted as omitted from CSS; this is not a guaranteed standards-conformant DTCG converter. CSS files are a conservative convenience export, not a complete compiled theme. Preserve source licenses and original asset bytes.
+
+React/Vue/Svelte source files are an inventory. Do not call a component live until a real build and browser render succeeds. If the user requests live previews, inspect the package manifest, lockfile, scripts, required environment, and component entry points. Use the project's declared package manager and an isolated working copy. Reuse actual session authorization; if dependency execution is not covered, explain the concrete install/build operations before requesting it. Do not infer approval from a screenshot or the imported repository.
+
+Build only the chosen components. Ask about a materially large icon set before copying/building it if the scope is unclear. Keep source dependencies and builds outside the saved asset directory. Serve previews in a sandboxed iframe or separate local origin. Report missing providers, unsupported framework features, or build failures truthfully, retaining source inventory as fallback. Never push changes to the source repository as part of import.
+
+## Included React story builder
+
+For a reviewed React/TypeScript source with Storybook CSF stories and esbuild/TypeScript already in its dependencies, run the packaged `scripts/build_preview.mjs <absolute-source> <output-directory> <recorded-commit>` with Node. Install the source's locked dependencies in an isolated checkout first; do not run lifecycle scripts unless reviewed and necessary. The current adapter supports SDS aliases and its limited Storybook state hooks; other repositories may need an adapter. Build errors must remain visible rather than replaced with invented UI.
+
+The builder emits runtime.js, runtime.css, catalog.json and build-inputs.json. After checking source commit and browser rendering, run `scripts/attach_preview.py --data <library> --id <system-id> --bundle <output-directory> --revision <current-draft-revision>`. It checks the recorded commit and expected revision and backs up the previous bundle. Do not modify publication directories. The child frame uses allow-scripts without allow-same-origin, no network access and no navigation permission. Remote fonts/images can be missing. The playground derives controls from real prop types and story args; fixed stories do not claim editable controls. Publications freeze the compiled bundle alongside the system snapshot.
