@@ -2,6 +2,92 @@
 
 A personal Codex design-system studio with imports, live component exploration, editable guidelines and independent design-system publications. It is not a full canvas editor or a hosted multiuser service.
 
+## Fresh rebuild in another Codex environment
+
+**Start here to build your own independent installation.** Give another Codex environment this README and the brief below. It should create a new project from the documented behavior and implementation references, with an empty library and new configuration. This is a rebuild task, not a request to clone this repository, copy the author's installation, or join the author's shared library.
+
+This private repository must be readable by the new environment to inspect the implementation. Access to this reference repository does **not** select it as the new installation's publishing destination.
+
+### Copy this brief into Codex
+
+```text
+Rebuild GPT Design as a fresh, independent Codex plugin in this environment.
+Use this README and plugins/gpt-design/ as read-only implementation references.
+Read individual source files through authorized GitHub access as needed. Do not
+clone or fork this repository, copy an installed plugin/cache, or import its
+existing design systems. Create the implementation in a new, empty project.
+
+Keep the existing studio layout and neutral colors. Recreate:
+- Imports from GitHub, local folders and uploaded files; tokens, assets,
+  preserved component source, guidelines and source inspection.
+- A library chooser, token editing, editable overview/guidelines, and component
+  playgrounds when a source-specific preview has actually been built.
+- Independent immutable publications, version history and rollback as a new
+  release, with local working drafts and consumers pinned to a publication.
+- Optional GitHub backing: adding a system uploads its initial version;
+  publishing uploads the next version; other installations check automatically.
+  Preserve dirty drafts, retry frozen initial uploads, reject stale writes,
+  and keep credentials outside code, archives and committed configuration.
+- Rename and confirmed deletion, shared catalog updates, and recovery copies.
+- The studio MCP tools and import/build/review/maintenance skills.
+
+Create fresh project-specific settings: plugin/marketplace identity, library
+location, allowed import folders and optional GitHub destination. Ask only for
+choices that are missing. Start with zero systems and GitHub disconnected.
+Do not reuse Ohedborg/gpt-design as the destination, PK Design Tools registration,
+any personal filesystem paths, saved system IDs, GitHub bindings, credentials,
+preview artifacts or existing settings.json from the reference installation.
+
+Adapt the installer, runtime settings namespace, plugin manifests and skill
+instructions together. Existing GPT Design settings must not be loaded as a
+fallback. Preserve other installed plugins and marketplace entries. If another
+GPT Design installation exists, give this one a distinct identity and settings
+location instead of overwriting it. Generate an installation report here; do
+not copy the original report or claim its verification results as your own.
+
+The bundled install-personal.py is for the original maintainer's setup. Do not
+run it unchanged for this rebuild. Create an installer for this environment,
+register its local marketplace, and verify the available Codex CLI commands.
+Use Python 3.9+ for the local server. Live previews additionally need the actual
+source project's locked dependencies and a reviewed source-specific adapter.
+Do not execute imported source merely to scan tokens or component inventory.
+
+Use a new Git repository only if requested for the new project, with its own
+remote. Connect a shared library only to a destination selected by this user.
+The shared folder can be design-systems/, with one stable folder per system.
+
+Run the relevant tests, install this fresh build, and open it in Codex. Verify
+an empty, disconnected first launch before adding disposable test content.
+Exercise import, editing, publication, rename and deletion. If GitHub backing
+is configured, verify automatic publication and updates in a second isolated
+library without touching the reference repository's publications. Report what
+was verified and any setup still required. Never claim the embedded UI works
+based only on installation or server tests.
+```
+
+### Implementation map for the rebuilding agent
+
+All paths below are relative to `plugins/gpt-design/`:
+
+| Area | Reference |
+| --- | --- |
+| Plugin registration and launch | `plugin.json`, `.codex-plugin/plugin.json`, `mcp.json`, `.mcp.json` |
+| MCP tools and embedded studio | `skills/gpt-design/scripts/mcp_server.py` |
+| Imports, token storage and local HTTP API | `skills/gpt-design/scripts/gpt_design.py` |
+| Studio layout, colors and interactions | `skills/gpt-design/assets/studio/` |
+| Guidelines, preserved files and previews | `skills/gpt-design/scripts/studio_features.py` |
+| Immutable releases and rollback | `skills/gpt-design/scripts/releases.py` |
+| Automatic GitHub library updates | `skills/gpt-design/scripts/github_library.py` |
+| Rename and recoverable deletion | `skills/gpt-design/scripts/system_management.py` |
+| Consumer and maintenance workflows | `skills/` |
+| Behavior checks and disposable import fixture | `tests/`, `examples/starter/` |
+
+The current runtime uses Unix file locking (`fcntl`); a native Windows rebuild needs an equivalent locking implementation or a Unix environment such as WSL. The core studio has no third-party Python runtime dependencies. There is no compiled application bundle to inherit; preview builds are separate and depend on the imported source.
+
+**Fresh configuration is part of the rebuild.** The reference runtime reads `~/.codex/gpt-design/settings.json`, and the reference installer preserves it. Merely changing the project folder does not isolate an installation. The rebuilding agent must give its runtime and skills the new settings location and create new `libraryPath` and `allowedRoots` values. Keep library data outside plugin caches. Do not seed the new library from this repository's `design-systems/`, local `library/`, `github-library.json`, history, trash or release archives. New imports receive new IDs.
+
+Email sign-in, organization invitations and a hosted team service are **not implemented in this version**. A fresh build must not present those as working features. The current shared-library implementation uses each user's GitHub access. Plugin software upgrades and design-system publications are separate.
+
 ## Open and use
 
 Open **GPT Design** in Codex. After updating, close and reopen the panel; if the old version remains, reload the plugin or restart Codex. Installation alone does not prove an already-open host has refreshed.
@@ -17,9 +103,11 @@ With multiple systems, the studio opens a chooser instead of restoring the last-
 
 Publishing a system does not reinstall or republish the plugin. Use **Connect GitHub library** to choose a shared repository and design-systems folder. **Add design system** automatically uploads its initial version 1. **Publish** sends each later version directly to the connected repository. Other installations check on opening and every minute while the studio is visible, without a manual sync step. Failed initial uploads are visibly queued and retried automatically; retries preserve later draft edits. **Back up to GitHub** remains available only for older local publications. Without a connection, publications stay local. Repository readers can consume shared systems; writers can maintain and publish them. Per-system collaborator invitations and ChatGPT workspace identity remain future work. See [GitHub library setup](plugins/gpt-design/docs/github-library.md).
 
-This repository stores plugin code in `plugins/gpt-design/` and publications in `design-systems/<system-name>-<id>/`. On each machine, install the plugin once, sign in with `gh auth login`, and connect `Ohedborg/gpt-design`, branch `main`, folder `design-systems`. Every person needs access to this private repository. New design-system publications are downloaded independently of plugin-code updates.
+This repository stores plugin code in `plugins/gpt-design/` and the author’s publications in `design-systems/<system-name>-<id>/`. Only people explicitly joining the author’s existing library should connect `Ohedborg/gpt-design`, branch `main`, folder `design-systems`, using their own GitHub access. Independent rebuilds choose their own destination. New design-system publications are downloaded independently of plugin-code updates.
 
-## Your Simple Design System
+## Reference installation: Simple Design System
+
+This describes the author’s existing data, not starter content for a fresh installation.
 
 The existing system is retained at `library/systems/602d3a7cd1314732bfd4cb6678fb08d9`, pinned to figma/sds commit `05525f75192a3aa5d5690c5e41277ebd19d2efe1`. It contains 1,255 token declarations, 342 component source files, 568 preserved source/file entries, and 58 live examples across 31 story files. A source-file count is not a count of live examples. The preview uses real React components and source stories. CheckboxField and SwitchField use small direct-component adapters to expose supported state props that their source stories do not forward.
 
@@ -40,7 +128,9 @@ Choose one of three import sources: a **GitHub repository**, a **local folder**,
 
 New imports preserve eligible source files. Older snapshots without source content report the missing content; restore it from their recorded commit rather than inventing files. Preview builds for other codebases require a reviewed adapter and actual browser verification; the included builder currently targets the SDS React story structure.
 
-## Installation and development
+## Maintainer installation and development
+
+These commands update the author’s existing registration and intentionally preserve its settings. For an independent installation, use the [fresh rebuild brief](#fresh-rebuild-in-another-codex-environment) and generate an environment-specific installer instead.
 
 Development source: `plugins/gpt-design`. Personal source: `~/.codex/plugins/gpt-design`. Marketplace: `~/.agents/plugins/marketplace.json` under PK Design Tools. Library and allowed import roots: `~/.codex/gpt-design/settings.json`. Plugin updates preserve that library and access configuration.
 
@@ -50,7 +140,7 @@ codex plugin add gpt-design@pk-design-tools --json
 python3 -m unittest discover -s plugins/gpt-design/tests -v
 ```
 
-Python 3.9+ serves the local studio and MCP stdio tools without third-party Python runtime dependencies. React previews additionally need the source's locked build dependencies. Read `skills/gpt-design/references/import-and-preview.md` before building/attaching a preview.
+Python 3.9+ serves the local studio and MCP stdio tools without third-party Python runtime dependencies. React previews additionally need the source's locked build dependencies. Read `plugins/gpt-design/skills/gpt-design/references/import-and-preview.md` before building/attaching a preview.
 
 Data layout:
 
