@@ -1,4 +1,4 @@
-# GPT Design — v0.6.0
+# GPT Design — v0.6.1
 
 A personal Codex design-system studio with imports, live component exploration, editable guidelines and independent design-system publications. It is not a full canvas editor or a hosted multiuser service.
 
@@ -15,7 +15,7 @@ With multiple systems, the studio opens a chooser instead of restoring the last-
 - **Publish:** freeze the saved draft with release notes. Publications include tokens, guidelines, source files, assets and compiled previews. Future draft changes cannot alter them.
 - **Version history:** opens on demand from the history icon. View old releases or roll back by creating a new publication from the old content. The current working draft and all previous releases remain intact.
 
-Publishing a system does not reinstall or republish the plugin. Use **Connect GitHub library** to choose a shared repository and design-systems folder. **Back up to GitHub** sends existing publications while preserving unpublished draft edits. **Publish** creates a new version in the connected repository; other installations sync on opening or through **Sync now**. Without a connection, publications stay local. Repository readers can consume shared systems; writers can maintain and publish them. Per-system collaborator invitations and ChatGPT workspace identity remain future work. See [GitHub library setup](plugins/gpt-design/docs/github-library.md).
+Publishing a system does not reinstall or republish the plugin. Use **Connect GitHub library** to choose a shared repository and design-systems folder. **Add design system** automatically uploads its initial version 1. **Publish** sends each later version directly to the connected repository. Other installations check on opening and every minute while the studio is visible, without a manual sync step. Failed initial uploads are visibly queued and retried automatically; retries preserve later draft edits. **Back up to GitHub** remains available only for older local publications. Without a connection, publications stay local. Repository readers can consume shared systems; writers can maintain and publish them. Per-system collaborator invitations and ChatGPT workspace identity remain future work. See [GitHub library setup](plugins/gpt-design/docs/github-library.md).
 
 This repository stores plugin code in `plugins/gpt-design/` and publications in `design-systems/<system-name>-<id>/`. On each machine, install the plugin once, sign in with `gh auth login`, and connect `Ohedborg/gpt-design`, branch `main`, folder `design-systems`. Every person needs access to this private repository. New design-system publications are downloaded independently of plugin-code updates.
 

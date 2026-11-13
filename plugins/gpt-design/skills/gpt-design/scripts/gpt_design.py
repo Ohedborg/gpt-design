@@ -27,7 +27,7 @@ import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = '0.6.0'
+VERSION = '0.6.1'
 GROUPS = {'colors', 'spacing', 'assets', 'components'}
 IGNORED = {'.git', '.next', '.codex', '.agents', 'node_modules', 'dist', 'build', '.cache', '__pycache__', '.venv', 'venv'}
 ASSETS = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.pdf'}
@@ -168,6 +168,7 @@ def import_system(source, data, name, scope=None, source_meta=None):
     if not source.is_dir():
         raise ValueError('The source folder does not exist.')
     data.mkdir(parents=True, exist_ok=True)
+    connection = github_library.config(data)
     ident = uuid.uuid4().hex
     stage = Path(tempfile.mkdtemp(prefix='.import-', dir=data))
     system = {'schemaVersion': 1, 'revision': 0, 'id': ident, 'name': name.strip(), 'createdAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'source': source_meta or {'kind': 'local', 'path': str(source)}, 'scope': sorted(scope), 'tokens': [], 'assets': [], 'components': [], 'files': [], 'warnings': [], 'filesScanned': 0, 'status': 'snapshot'}
@@ -219,7 +220,7 @@ def import_system(source, data, name, scope=None, source_meta=None):
             notes.append('Components are a source inventory; live previews have not been built.')
         if any(a['kind'] == 'guideline' for a in system['assets']):
             notes.append('PDF guidelines were preserved as files. Their contents have not been extracted.')
-        notes.append('Snapshot import: categories are inferred; aliases and source precedence require review. No ongoing sync is configured.')
+        notes.append('Snapshot import: categories are inferred; aliases and source precedence require review. Upstream source changes are not imported automatically.')
         css, omitted = css_export(system['tokens'])
         if omitted:
             notes.append(str(omitted) + ' token(s) remain in JSON but need interpretation before CSS export.')
@@ -230,6 +231,8 @@ def import_system(source, data, name, scope=None, source_meta=None):
         target = data / 'systems' / ident
         target.parent.mkdir(parents=True, exist_ok=True)
         stage.rename(target)
+        if connection:
+            return github_library.initialize_import(data,ident,connection)
         return system
     except Exception:
         shutil.rmtree(stage, ignore_errors=True)
@@ -316,7 +319,7 @@ def summaries(data):
     for p in (data / 'systems').glob('*/system.json'):
         try:
             s = json.loads(p.read_text())
-            result.append({k: s[k] for k in ['id', 'name', 'createdAt', 'source', 'scope']} | {'counts': {k: len(s[k]) for k in ['tokens', 'assets', 'components']}})
+            result.append({k: s[k] for k in ['id', 'name', 'createdAt', 'source', 'scope']} | {'counts': {k: len(s[k]) for k in ['tokens', 'assets', 'components']}, 'pendingUpload':s.get('pendingUpload'), 'shared':s.get('shared')})
         except (OSError, ValueError, KeyError):
             continue
     return sorted(result, key=lambda s: s['createdAt'], reverse=True)

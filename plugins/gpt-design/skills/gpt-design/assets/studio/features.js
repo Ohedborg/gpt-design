@@ -131,13 +131,13 @@ function mountPublishing(){
  const actions=document.querySelector('.workspace-actions');if(!actions)return;
  const release=current._release,publication=current.publication;
  const bar=document.createElement('div');bar.className='publication-controls';
- bar.innerHTML=`<span class="release-badge">${release?'Published v'+release.version:'Working draft'}</span>${release?'<button class="button small" id="openDraft">Edit draft</button>':'<button class="button small primary" id="publishDraft">Publish…</button>'}${!release&&publication?`<button class="button small" id="viewPublished">View v${publication.version}</button>`:''}<button class="icon-button" id="versionHistory" title="Version history" aria-label="Version history">${icon('undo')}</button>`;
+ bar.innerHTML=`<span class="release-badge">${current.pendingUpload?'Waiting to upload':release?'Published v'+release.version:'Working draft'}</span>${release?'<button class="button small" id="openDraft">Edit draft</button>':'<button class="button small primary" id="publishDraft">Publish…</button>'}${!release&&publication?`<button class="button small" id="viewPublished">View v${publication.version}</button>`:''}<button class="icon-button" id="versionHistory" title="Version history" aria-label="Version history">${icon('undo')}</button>`;
  actions.prepend(bar);$('#versionHistory').onclick=showVersionHistory;
  if($('#publishDraft'))$('#publishDraft').onclick=()=>publicationDialog();
  if($('#openDraft'))$('#openDraft').onclick=async()=>{try{current=await api('/api/systems/'+current.id);previewCache.clear();detail();}catch(e){toast(e.message);}};
  if($('#viewPublished'))$('#viewPublished').onclick=()=>openRelease(publication.version);
  if(release)$('#saveStatus').textContent=current.shared?'GitHub · v'+release.version:'Read-only release';
- if(sharedLibrary.connected&&sharedLibrary.canWrite&&!current.shared&&(release||publication)){
+ if(sharedLibrary.connected&&sharedLibrary.canWrite&&!current.shared&&!current.pendingUpload&&(release||publication)){
   const share=document.createElement('button');share.className='button small';share.textContent='Back up to GitHub';share.onclick=async()=>{if(!canLeaveWorkspace())return;share.disabled=true;try{const draft=await api('/api/systems/'+current.id);await api('/api/systems/'+current.id+'/share',{revision:draft.revision||0});await refresh();current=await loadSystemForViewing(current.id);detail();toast('Published versions backed up to GitHub');}catch(e){toast(e.message);share.disabled=false;}};bar.append(share);
  }
  if(current._access?.canPublish===false){$('#openDraft')?.remove();$('#publishDraft')?.remove();}
@@ -146,6 +146,8 @@ function mountPublishing(){
   const latest=document.createElement('button');latest.className='button small';latest.textContent='Start from latest';latest.title='Back up this draft and start from the latest published version';latest.onclick=async()=>{if(!canLeaveWorkspace())return;try{const result=await api('/api/systems/'+current.id+'/start-from-latest',{revision:current.revision||0});current=result.system;previewCache.clear();detail();toast('Previous draft backed up. Now editing the latest publication.');}catch(e){toast(e.message);}};bar.append(latest);$('#publishDraft')?.setAttribute('disabled','');
  }
 
+ if(current.pendingUpload)$('#publishDraft')?.setAttribute('disabled','');
+ renderAutomaticStatus();
  applyReadOnly();
 }
 async function openRelease(version){

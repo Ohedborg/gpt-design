@@ -29,7 +29,7 @@
   if(message.method === 'ui/resource-teardown' && message.id !== undefined) post({jsonrpc:'2.0',id:message.id,result:{}});
  });
  const ready = request('ui/initialize', {
-  protocolVersion:'2026-01-26', appInfo:{name:'GPT Design',version:'0.6.0'},
+  protocolVersion:'2026-01-26', appInfo:{name:'GPT Design',version:'0.6.1'},
   appCapabilities:{availableDisplayModes:['inline','fullscreen']}
  }, 20000).then(result => {
   post({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}});

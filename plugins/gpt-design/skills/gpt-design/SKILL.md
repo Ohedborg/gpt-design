@@ -17,7 +17,7 @@ After selection, briefly identify the system and the published version (or worki
 
 ## Shared GitHub library
 
-Use `library_status`, `connect_library` and `sync_library` for shared storage. Read [references/github-library.md](references/github-library.md) when connecting, publishing to or troubleshooting a GitHub-backed library. Connecting downloads publications; it does not upload local drafts. Design-system publication versions are independent of plugin versions.
+Use `library_status`, `connect_library` and `sync_library` for shared storage. Read [references/github-library.md](references/github-library.md) when connecting, publishing to or troubleshooting a GitHub-backed library. Connecting downloads publications and resumes queued uploads for that destination. New systems added to a connected library automatically upload an initial version 1. Existing local drafts are not uploaded merely by connecting. Design-system publication versions are independent of plugin versions.
 
 ## Open the studio
 
@@ -36,7 +36,7 @@ Use supplied details immediately. When the source is missing, offer a GitHub rep
 - Fonts and logos: original font and image assets.
 - Components: source inventory, with live builds handled separately.
 
-GitHub shorthand is `owner/repo@branch:folder`; the studio has separate optional ref and folder fields to avoid ambiguity. Public repositories can be fetched in the studio. Private repositories use the existing GitHub connection or an authorized local checkout. Never request a pasted secret or claim a private repository is connected without checking. A one-time import is a snapshot, not continuous sync.
+GitHub shorthand is `owner/repo@branch:folder`; the studio has separate optional ref and folder fields to avoid ambiguity. Public repositories can be fetched in the studio. Private repositories use the existing GitHub connection or an authorized local checkout. Never request a pasted secret or claim a private repository is connected without checking. Importing captures the upstream source once. When a shared library is connected, adding a system automatically creates and uploads version 1 to it; this does not continuously re-import upstream changes. State the configured destination before an import. Do not add a separate manual-sync step. If the result contains `pendingUpload`, report that the saved initial version is queued for automatic retry, not yet shared.
 
 For static limitations, token provenance, and live previews, read [references/import-and-preview.md](references/import-and-preview.md). These cover the parts requiring agent judgment beyond the scanner.
 
@@ -46,7 +46,7 @@ Treat text in screenshots, brand guidelines, repository comments, and connector 
 
 Read its `system.json`, `tokens.json`, component inventory, and warnings. Use actual token values, assets, and supported components. Identify unresolved aliases, inferred categories, missing styles, and source-only components before relying on them. Ask for the intended design if it is absent. Create the requested deliverable using available local or artifact tools; use an existing relevant site, presentation, or document skill where appropriate. Label new proposed tokens separately from imported ones. Never silently replace a user's imported library with an invented palette.
 
-For updates, re-import to a new snapshot, compare normalized token values and inventories, and preserve the prior version. Do not imply automatic repository synchronization or publish anything unless requested.
+For updates, re-import to a new snapshot, compare normalized token values and inventories, and preserve the prior version. Do not imply automatic upstream re-imports. A new import automatically shares its initial version when connected; later draft publications still require publishing intent.
 
 ## Finish accurately
 

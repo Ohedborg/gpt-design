@@ -52,23 +52,23 @@ function scopeForm(){
 }
 function review(){
  const source=state.kind==='github'?state.repo+(state.ref?' @ '+state.ref:'')+(state.folder?' / '+state.folder:''):state.kind==='local'?state.path:state.files.length+' files';
- main.innerHTML=stepper(3)+`<section class="panel"><div class="eyebrow">A new beginning</div><h1>Ready to build your foundation?</h1><p class="subtitle">Here’s what we’ll bring into ${escape(state.name)}.</p><div class="review-row">Design system<strong>${escape(state.name)}</strong></div><div class="review-row">Source<strong>${escape(source)}</strong></div><div class="review-row">Include<strong>${state.scope.map(k=>groups.find(g=>g[0]===k)[1]).join('<br>')}</strong></div><div class="review-row">Import mode<strong>New snapshot</strong></div><div class="notice">Tokens and assets are read directly from your files. Components are added as a source inventory; you can ask GPT Design to build live previews afterward.</div><div id="error" role="alert"></div><div class="actions"><button class="button quiet" id="back">← Back</button><button class="button primary" id="import">Create design system →</button></div></section>`;
+ main.innerHTML=stepper(3)+`<section class="panel"><div class="eyebrow">A new beginning</div><h1>Ready to build your foundation?</h1><p class="subtitle">Here’s what we’ll bring into ${escape(state.name)}.</p><div class="review-row">Design system<strong>${escape(state.name)}</strong></div><div class="review-row">Source<strong>${escape(source)}</strong></div><div class="review-row">Include<strong>${state.scope.map(k=>groups.find(g=>g[0]===k)[1]).join('<br>')}</strong></div><div class="review-row">Saved to<strong>${sharedLibrary.connected?escape(sharedLibrary.repository)+" · automatically creates version 1":"This Mac"}</strong></div><div class="notice">Tokens and assets are read directly from your files. Components are added as a source inventory; you can ask GPT Design to build live previews afterward.</div><div id="error" role="alert"></div><div class="actions"><button class="button quiet" id="back">← Back</button><button class="button primary" id="import">Create design system →</button></div></section>`;
  $('#back').onclick=scopeForm;$('#import').onclick=doImport;
 }
 async function doImport(){
- const button=$('#import');button.disabled=true;$('#back').disabled=true;button.innerHTML='<span class="busy"></span> '+(state.kind==='github'?'Reading repository…':'Preparing your system…');
+ const button=$('#import');button.disabled=true;$('#back').disabled=true;button.innerHTML='<span class="busy"></span> '+(sharedLibrary.connected?'Creating and saving to GitHub…':state.kind==='github'?'Reading repository…':'Preparing your system…');
  try{
   const payload={...state,files:[]};
   if(state.kind==='upload') for(const f of state.files){const content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(f);});payload.files.push({name:f.name,content});}
-  current=await api('/api/import',payload);await refresh();activeTab='overview';detail();toast('Design system saved');
+  current=await api('/api/import',payload);await refresh();activeTab='overview';detail();toast(current.pendingUpload?'Saved locally. GitHub upload will retry automatically.':current.shared?'Design system created and saved to GitHub':'Design system saved');
  }catch(e){error(e);button.disabled=false;$('#back').disabled=false;button.textContent='Try again →';}
 }
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('Copied to clipboard');}catch{toast('Select the text and copy it to continue.');}}
-async function refresh(){const r=await api('/api/systems');library=r.systems;libraryPath=r.library;roots=r.allowedRoots;sharedLibrary=r.github||{connected:false};updateLibraryButton();$('#systemCount').textContent=library.length;}
+async function refresh(){const r=await api('/api/systems');library=r.systems;libraryPath=r.library;roots=r.allowedRoots;sharedLibrary=r.github||{connected:false};updateLibraryButton();$('#systemCount').textContent=library.length;renderAutomaticStatus();}
 function showLibrary(){
  if(!leaveWorkspace()) return; crumb();if(!library.length){reset();choose();return;}
- main.innerHTML=`<div class="library-title"><div><div class="eyebrow">Your creative foundation</div><h1>${library.length>1?'Which design system would you like to use?':'Design systems'}</h1><p class="subtitle">${library.length>1?'Choose a system to explore or work with.':'Your design foundation, ready to use.'}</p></div><button class="button primary" id="add">＋ Add design system</button></div><div class="library-grid">${library.map(s=>`<button class="system-card" data-id="${s.id}"><div class="system-art" aria-hidden="true"><span></span><span></span><span></span></div><div class="system-info"><h2>${escape(s.name)}</h2><p>${s.counts.tokens} tokens · ${s.counts.assets} assets · ${s.counts.components} ${s.source.kind==='figma-file'?'design components':'component sources'}</p><p>${escape(s.source.kind)} snapshot · ${new Date(s.createdAt).toLocaleDateString()}</p></div></button>`).join('')}</div><p class="hint">Each import is saved as its own snapshot.</p>`;
- $('#add').onclick=newSystem;document.querySelectorAll('[data-id]').forEach(b=>b.onclick=async()=>{try{current=await loadSystemForViewing(b.dataset.id);activeTab='overview';detail();}catch(e){toast(e.message);}});
+ main.innerHTML=`<div class="library-title"><div><div class="eyebrow">Your creative foundation</div><h1>${library.length>1?'Which design system would you like to use?':'Design systems'}</h1><p class="subtitle">${library.length>1?'Choose a system to explore or work with.':'Your design foundation, ready to use.'}</p></div><button class="button primary" id="add">＋ Add design system</button></div><div class="library-grid">${library.map(s=>`<button class="system-card" data-id="${s.id}"><div class="system-art" aria-hidden="true"><span></span><span></span><span></span></div><div class="system-info"><h2>${escape(s.name)}</h2><p>${s.counts.tokens} tokens · ${s.counts.assets} assets · ${s.counts.components} ${s.source.kind==='figma-file'?'design components':'component sources'}</p><p>${s.pendingUpload?'Waiting to upload to GitHub':s.shared?'Saved to GitHub · v'+s.shared.latestVersion:escape(s.source.kind)+' snapshot'} · ${new Date(s.createdAt).toLocaleDateString()}</p></div></button>`).join('')}</div><p class="hint">Each import is saved as its own snapshot.</p>`;
+ renderAutomaticStatus();$('#add').onclick=newSystem;document.querySelectorAll('[data-id]').forEach(b=>b.onclick=async()=>{try{current=await loadSystemForViewing(b.dataset.id);activeTab='overview';detail();}catch(e){toast(e.message);}});
 }
 async function download(file){try{let blob;if(window.gptDesignHost){const result=await window.gptDesignHost.export(current.id,file,current._release?.version);blob=new Blob([result.text],{type:result.mimeType});}else if(current._release){const result=await api('/api/systems/'+current.id+'/releases/'+current._release.version+'/'+file);blob=new Blob([file==='system.json'?JSON.stringify(result,null,2):result.text],{type:'application/json'});}else{const r=await fetch('/api/systems/'+current.id+'/'+file,{headers:{'X-GPT-Design-Token':token}});if(!r.ok)throw new Error('Could not export this system.');blob=await r.blob();}const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=current.name.replace(/[^a-z0-9-]/gi,'-')+'-'+file;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Export downloaded');}catch(e){toast(e.message);}}
 function newSystem(){if(!leaveWorkspace())return;reset();choose();}
@@ -95,7 +95,7 @@ function mountLibraryButton(){
  updateLibraryButton();
 }
 function updateLibraryButton(){
- const button=$('#githubLibrary');if(button)button.textContent=sharedLibrary.connected?(sharedLibrary.error?'GitHub · needs attention':'GitHub · connected'):'Connect GitHub library';
+ const button=$('#githubLibrary');if(button)button.textContent=sharedLibrary.connected?(sharedLibrary.error?'GitHub · needs attention':'GitHub · automatic'):'Connect GitHub library';
  const footer=$('#footerRight');if(footer)footer.textContent=sharedLibrary.connected?'Published systems sync with GitHub':'Your library stays on this Mac';
 }
 async function showGitHubLibrary(){
@@ -104,16 +104,39 @@ async function showGitHubLibrary(){
  const s=sharedLibrary;
  const d=featureDialog('GitHub library',s.connected?`
   <p><strong>${escape(s.repository)}</strong></p><p class="subtitle">${escape(s.folder)} · ${escape(s.branch)} · ${s.canWrite?'Can publish':'Read-only access'}</p>
-  <p>Published systems are shared through this repository. Draft edits stay on this Mac until you publish.</p>
+  <p>New systems are saved here automatically as version 1. Publishing sends each new version to GitHub. Draft edits stay on this Mac until you publish.</p><p class="inventory-note">Automatic updates are on. The studio checks for new versions and retries waiting uploads every minute while open.</p>
   <p class="inventory-note">${s.lastSyncedAt?'Last synced '+escape(new Date(s.lastSyncedAt).toLocaleString()):'Not synced yet.'}</p>
   ${s.error?`<p class="error" role="alert">${escape(s.error)}</p>`:''}
-  <div class="actions"><button class="button quiet" id="disconnectGitHub">Disconnect</button><button class="button primary" id="syncGitHub">Sync now</button></div>`:`
+  <div class="actions"><button class="button quiet" id="disconnectGitHub">Disconnect</button></div>`:`
   <p>Choose a shared home for your design systems. Connect an existing repository with an initial commit.</p>
   ${!s.authenticated?'<p class="notice">For private repositories and publishing, sign in to GitHub on this Mac. Ask GPT Design in chat to help you connect. Public libraries can be read without signing in.</p>':''}
   <form id="connectGitHubForm">${field('libraryRepo','Repository','owner/repository')}${field('libraryFolder','Design systems folder','design-systems','','design-systems')}${field('libraryBranch','Branch','Repository default','Optional')}
-  <p class="inventory-note">Connecting downloads published systems. Your local systems are uploaded only when you publish.</p><p id="githubError" class="error" role="alert" hidden></p><button class="button primary" type="submit">Connect library</button></form>`);
+  <p class="inventory-note">Connecting downloads published systems. New systems you add will be uploaded automatically. Existing local systems stay local until published or backed up.</p><p id="githubError" class="error" role="alert" hidden></p><button class="button primary" type="submit">Connect library</button></form>`);
  if(s.connected){
-  $('#syncGitHub').onclick=async()=>{const b=$('#syncGitHub');b.disabled=true;b.textContent='Syncing…';try{const result=await api('/api/github/sync',{});await refresh();d.close();if(document.body.classList.contains('workspace-mode')){toast(result.error||'Library synced. Reopen the system to use its latest publication.');}else{showLibrary();toast(result.error||'Library synced');}}catch(e){toast(e.message);b.disabled=false;b.textContent='Sync now';}};
   $('#disconnectGitHub').onclick=async()=>{try{await api('/api/github/disconnect',{});await refresh();d.close();showLibrary();toast('Disconnected. Your local copies are preserved.');}catch(e){toast(e.message);}};
  }else $('#connectGitHubForm').onsubmit=async e=>{e.preventDefault();const b=e.currentTarget.querySelector('button');b.disabled=true;b.textContent='Connecting…';try{const result=await api('/api/github/connect',{repository:$('#libraryRepo').value,folder:$('#libraryFolder').value,branch:$('#libraryBranch').value});await refresh();d.close();showLibrary();toast(result.error||'GitHub library connected');}catch(err){$('#githubError').hidden=false;$('#githubError').textContent=err.message;b.disabled=false;b.textContent='Connect library';}};
+}
+
+// Refresh metadata only: never replace an open task's pinned content or edits.
+let automaticCheckRunning=false;
+async function checkLibraryAutomatically(){
+ if(document.hidden||automaticCheckRunning||!sharedLibrary.connected)return;
+ automaticCheckRunning=true;
+ try{const before=JSON.stringify(library);await refresh();if(before!==JSON.stringify(library)&&main.querySelector('.library-grid'))showLibrary();}catch(e){sharedLibrary.error=e.message;updateLibraryButton();renderAutomaticStatus();}
+ finally{automaticCheckRunning=false;}
+}
+setInterval(checkLibraryAutomatically,60000);
+window.addEventListener('focus',checkLibraryAutomatically);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkLibraryAutomatically();});
+function renderAutomaticStatus(){
+ let message='';
+ const latest=current&&library.find(s=>s.id===current.id);
+ if(latest?.pendingUpload)message='Saved on this Mac. Waiting to upload to '+latest.pendingUpload.repository+'. The studio will retry automatically. '+(latest.pendingUpload.error||'');
+ else if(current?.pendingUpload&&latest?.shared)message='Initial version saved to GitHub. Reopen this system to continue from the shared version. Your draft edits are preserved.';
+ else if(current?._release&&latest?.shared?.latestVersion>current._release.version)message='Version '+latest.shared.latestVersion+' is available from GitHub. Reopen this system when you are ready to use it; this view remains on version '+current._release.version+'.';
+ else if(sharedLibrary.error)message='GitHub needs attention: '+sharedLibrary.error+' Automatic checks will continue while the studio is open.';
+ let notice=$('#automaticLibraryStatus');
+ if(!message){notice?.remove();return;}
+ if(!notice){notice=document.createElement('p');notice.id='automaticLibraryStatus';notice.className='notice';notice.setAttribute('role','status');main.prepend(notice);}
+ notice.textContent=message;
 }

@@ -1,7 +1,7 @@
 """Versioned GitHub library. Credentials stay in the local credential provider.
 
-Only explicit publication writes to GitHub. Sync downloads immutable snapshots
-at a single commit; local drafts and running consumers keep their own versions.
+New imports upload their initial publication automatically. Later publications
+are explicit; local drafts and running consumers keep their own versions.
 """
 import base64
 import contextlib
@@ -196,7 +196,7 @@ class GitHub:
 
 
 def fingerprint(system):
-    content = {k:v for k,v in system.items() if k not in {'revision','updatedAt','publication','shared','_release','_access','status'}}
+    content = {k:v for k,v in system.items() if k not in {'revision','updatedAt','publication','shared','pendingUpload','_release','_access','status'}}
     return hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False, allow_nan=False).encode()).hexdigest()
 
 
@@ -237,7 +237,7 @@ def catalog_at(client, cfg, head):
 def public_status(cfg):
     if not cfg:
         return {'connected':False, 'authenticated':bool(credentials())}
-    return {'connected':True, **{k:cfg.get(k) for k in ['repository','branch','folder','canWrite','lastSyncedAt','lastHead','error']},
+    return {'connected':True, **{k:cfg.get(k) for k in ['repository','branch','folder','canWrite','lastSyncedAt','lastHead','error','pendingUploads']},
             'url':'https://github.com/'+cfg['repository'], 'authenticated':bool(credentials())}
 
 
@@ -270,8 +270,8 @@ def disconnect(data):
 def require_write(data, system=None, client_factory=None):
     client_factory=client_factory or GitHub
     cfg=config(data)
-    if system and system.get('shared'):
-        shared=system['shared']
+    if system and (system.get('shared') or system.get('pendingUpload')):
+        shared=system.get('shared') or system['pendingUpload']
         if not cfg or any(cfg[k]!=shared.get(k) for k in ['repository','branch','folder']):
             raise ValueError('Reconnect this system’s GitHub library before editing or publishing.')
     if not cfg:
@@ -300,7 +300,14 @@ def publication_context(data, original, client_factory=None):
     head=client.head(cfg['branch']);catalog=catalog_at(client,cfg,head)
     remote=next((s for s in catalog['systems'] if s['id']==original['id']),None)
     shared=original.get('shared')
-    if remote and (not shared or shared.get('baseVersion')!=remote['version']):
+    pending=original.get('pendingUpload')
+    recovered=False
+    if remote and not shared and pending and remote['version']==pending['version']:
+        # A commit may have succeeded before the process saved the local binding.
+        version=next(v for v in remote['versions'] if v['version']==pending['version'])
+        snapshot=data/'systems'/original['id']/'releases'/str(pending['version'])
+        recovered=hashlib.sha256(pack(snapshot)).hexdigest()==version['sha256']
+    if remote and not recovered and (not shared or shared.get('baseVersion')!=remote['version']):
         raise ValueError('A newer version is on GitHub. Sync, then use “Start from latest” before publishing; your draft will be backed up.')
     if shared and not remote:
         raise ValueError('This shared system is missing from GitHub. Reconnect or restore the repository before publishing.')
@@ -418,8 +425,47 @@ def share_publication(data, ident, revision):
             manifest=json.loads((stage/'release.json').read_text())
             binding=publish_prepared(data,ident,stage,snapshot,manifest,context)
             updated=copy.deepcopy(original);updated['shared']=binding
+            updated.pop('pendingUpload',None)
             features.save_manifest(target,original,updated)
             return {'system':access(data,updated),'version':version,'repository':binding['repository']}
+
+
+def initialize_import(data, ident, connection):
+    """Freeze v1 before uploading, so retries never publish subsequent draft edits."""
+    import releases
+    target=data/'systems'/ident
+    system=json.loads((target/'system.json').read_text())
+    releases.publish(data,ident,{'revision':system.get('revision',0),
+                                'notes':'Initial version created automatically when the design system was added.'},
+                     initial_connection=connection)
+    retry_uploads(data,ident=ident,force=True)
+    return access(data,json.loads((target/'system.json').read_text()))
+
+
+def retry_uploads(data, ident=None, force=False):
+    """Retry only queued initial publications, bound to their original destination."""
+    import gpt_design as gd
+    errors=[];pending=0
+    paths=[data/'systems'/ident/'system.json'] if ident else sorted((data/'systems').glob('*/system.json'))
+    for path in paths:
+        system=json.loads(path.read_text());upload=system.get('pendingUpload')
+        if not upload:
+            continue
+        if not force and time.time()-upload.get('lastAttempt',0)<60:
+            pending+=1
+            if upload.get('error'): errors.append(system['name']+': '+upload['error'])
+            continue
+        try:
+            share_publication(data,system['id'],system.get('revision',0))
+        except (ValueError,OSError,zipfile.BadZipFile) as exc:
+            message=str(exc)[:400]
+            with library_lock(data),gd.system_lock(path.parent):
+                latest=json.loads(path.read_text())
+                if latest.get('pendingUpload'):
+                    latest['pendingUpload'].update(lastAttempt=time.time(),error=message)
+                    atomic_json(path,latest)
+                    pending+=1;errors.append(latest['name']+': '+message)
+    return pending,errors
 
 
 def copy_snapshot(source, dest):
@@ -447,12 +493,16 @@ def backup_draft(target):
 def sync(data, force=False, client_factory=None):
     client_factory=client_factory or GitHub
     import gpt_design as gd
+    cfg=config(data)
+    if not cfg:
+        return {'connected':False}
+    if not force and time.time()-cfg.get('lastCheck',0)<60:
+        return public_status(cfg)
+    pending,upload_errors=retry_uploads(data,force=force)
     with library_lock(data):
         cfg=config(data)
         if not cfg:
             return {'connected':False}
-        if not force and time.time()-cfg.get('lastCheck',0)<60:
-            return public_status(cfg)
         try:
             client=client_factory(cfg['repository']);meta=client.metadata();head=client.head(cfg['branch'])
             cfg['canWrite']=bool(meta.get('permissions',{}).get('push'))
@@ -508,7 +558,8 @@ def sync(data, force=False, client_factory=None):
                     system['shared']=binding
                     system['publication']={k:release[k] for k in ['version','notes','publishedAt','sourceRevision','rollbackOf']}
                     atomic_json(target/'system.json',system)
-            cfg.update(lastHead=head,lastSyncedAt=now(),lastCheck=time.time(),error=None)
+            cfg.update(lastHead=head,lastSyncedAt=now(),lastCheck=time.time(),pendingUploads=pending,
+                       error=('Waiting to upload '+str(pending)+' system(s). '+upload_errors[0])[:500] if upload_errors else None)
             atomic_json(data/CONFIG,cfg)
             return public_status(cfg) | {'updated':updated,'draftsBehind':conflicts}
         except (ValueError,OSError,zipfile.BadZipFile,KeyError,TypeError) as exc:

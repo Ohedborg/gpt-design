@@ -41,11 +41,12 @@ def read(data, ident, version, file='system.json'):
         system['_release'] = json.loads((target / 'release.json').read_text())
         draft=json.loads((f.target_for(data,ident)/'system.json').read_text())
         if draft.get('shared'): system['shared']=draft['shared']
+        if draft.get('pendingUpload'): system['pendingUpload']=draft['pendingUpload']
         return shared.access(data,system)
     return {'text': (target / file).read_text(), 'mimeType': 'text/css' if file.endswith('.css') else 'application/json'}
 
 
-def publish(data, ident, payload):
+def publish(data, ident, payload, *, initial_connection=None):
     import gpt_design as gd
     import studio_features as f
     target = f.target_for(data, ident)
@@ -53,7 +54,14 @@ def publish(data, ident, payload):
         original = json.loads((target / 'system.json').read_text())
         if payload.get('revision') != original.get('revision', 0):
             raise gd.RevisionConflict('This draft changed. Reopen it before publishing.')
-        context=shared.publication_context(data,original)
+        if initial_connection is not None:
+            if original.get('publication') or original.get('shared') or original.get('pendingUpload') or history(data,ident)['releases']:
+                raise ValueError('An initial publication can only be created for a new import.')
+            context=None
+        else:
+            if original.get('pendingUpload'):
+                raise ValueError('The initial version is waiting to upload to GitHub. It will retry automatically while the studio is open.')
+            context=shared.publication_context(data,original)
         notes = payload.get('notes', '')
         if not isinstance(notes, str) or not notes.strip() or len(notes) > 4000:
             raise ValueError('Add release notes (up to 4,000 characters).')
@@ -81,6 +89,7 @@ def publish(data, ident, payload):
             snapshot.pop('publication', None)
             snapshot.pop('shared', None)
             snapshot.pop('_access', None)
+            snapshot.pop('pendingUpload', None)
             gd.write_json(stage / 'system.json', snapshot)
             gd.write_json(stage / 'tokens.json', {'format':'gpt-design-tokens-v1','tokens':snapshot['tokens']})
             (stage / 'tokens.css').write_text(gd.css_export(snapshot['tokens'])[0])
@@ -93,6 +102,8 @@ def publish(data, ident, payload):
             stage.rename(parent / str(number))
             updated = copy.deepcopy(original)
             if binding: updated['shared']=binding
+            if initial_connection is not None:
+                updated['pendingUpload']={k:initial_connection[k] for k in ['repository','branch','folder']} | {'version':number}
             updated['publication'] = {k:manifest[k] for k in ['version','notes','publishedAt','sourceRevision','rollbackOf']}
             # Rollback moves the published release only. The working draft remains intact.
             f.save_manifest(target, original, updated)

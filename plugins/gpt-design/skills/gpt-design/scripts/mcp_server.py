@@ -14,7 +14,7 @@ from http.server import ThreadingHTTPServer
 
 import gpt_design as gd
 
-VERSION = '0.6.0'
+VERSION = '0.6.1'
 URI = 'ui://gpt-design/studio.html'
 MIME = 'text/html;profile=mcp-app'
 ROOT = Path(__file__).resolve().parents[3]
@@ -37,7 +37,7 @@ RELEASE_VERSION = {'type':'integer','minimum':1}
 ID = {'type': 'string', 'pattern': '^[0-9a-f]{32}$'}
 PAYLOAD = {'type': 'object', 'description': 'Studio action parameters.'}
 TOOLS = [
-    tool('open_studio', 'GPT Design', 'Open GPT Design. With multiple systems, ask which to use unless already explicitly selected for this task. Pass that ID as system_id; otherwise show the chooser. Never infer from recency.', schema({'system_id': ID})),
+    tool('open_studio', 'GPT Design', 'Open GPT Design. With multiple systems, ask which to use unless already explicitly selected for this task. Pass that ID as system_id; otherwise show the chooser. Never infer from recency. Opening checks for GitHub updates and retries already queued initial uploads.', schema({'system_id': ID}), read=False, network=True),
     tool('get_file', 'Read a source file', 'Read a preserved source, guideline or asset file from the selected design system.', schema({'id': ID, 'path': {'type':'string'}, 'version': RELEASE_VERSION}, ['id','path'])),
     tool('get_preview', 'Load component playground', 'Read the compiled, isolated component playground for a design system.', schema({'id': ID, 'version': RELEASE_VERSION}, ['id'])),
     tool('maintain_system', 'Maintain design-system guidance', 'Save overview, component usage notes or a new token locally with revision history.', schema({'id': ID, 'payload': PAYLOAD}, ['id','payload']), read=False),
@@ -46,13 +46,13 @@ TOOLS = [
     tool('publish_system', 'Publish a design-system version', 'Publish the saved draft or a rollback. When a GitHub library is connected, this uploads the publication to that repository for other users. Requires repository write access. Without a connection, publishes locally. Does not update plugin software.', schema({'id': ID, 'payload': PAYLOAD}, ['id','payload']), read=False, network=True),
     tool('share_publication', 'Share an existing publication', 'Upload this system’s existing local published versions to the connected GitHub library. Preserve unpublished draft changes locally and retain version numbers. Requires explicit sharing or backup intent.', schema({'id':ID,'revision':{'type':'integer','minimum':0}}, ['id','revision']), read=False, network=True),
     tool('library_status', 'GitHub library status', 'Read the shared repository connection, sync status and local authentication availability.'),
-    tool('connect_library', 'Connect GitHub library', 'Connect an explicitly selected GitHub repository and design-systems folder. Downloads published systems; does not upload local drafts. Requires local GitHub authentication for private repositories.', schema({'payload': PAYLOAD}, ['payload']), read=False, network=True),
-    tool('sync_library', 'Sync published design systems', 'Fetch the latest published GitHub versions before selecting a system for a new task. Preserve unpublished drafts and already pinned task versions. Report any sync error and cached-version use.', read=False, network=True),
+    tool('connect_library', 'Connect GitHub library', 'Connect an explicitly selected GitHub repository and design-systems folder. Downloads published systems and resumes queued initial uploads for that destination. New imports automatically upload version 1; existing local drafts are not uploaded. Requires local GitHub authentication for private repositories.', schema({'payload': PAYLOAD}, ['payload']), read=False, network=True),
+    tool('sync_library', 'Sync published design systems', 'Fetch the latest published GitHub versions before selecting a system for a new task. Retry queued initial uploads to their original destination. Preserve unpublished drafts and already pinned task versions. Report any sync error and cached-version use.', read=False, network=True),
     tool('disconnect_library', 'Disconnect GitHub library', 'Disconnect only when requested. Keep local cached releases and drafts.', read=False),
     tool('start_from_latest', 'Refresh a shared draft', 'Back up the entire local draft, then start from the latest synced publication. Use when resolving an explicitly requested stale-draft update.', schema({'id':ID,'revision':{'type':'integer','minimum':0}}, ['id','revision']), read=False),
-    tool('list_systems', 'List design systems', 'List local and shared design systems; checks the configured GitHub library for published updates.'),
+    tool('list_systems', 'List design systems', 'List local and shared design systems; automatically checks for published updates and retries already queued initial uploads.', read=False, network=True),
     tool('get_system', 'Read a design system', 'Read tokens, assets, components and provenance.', schema({'id': ID}, ['id'])),
-    tool('import_system', 'Import a design system', 'Create a new snapshot from a public GitHub repository, allowed local folder, or uploaded token, asset and component source files. Never executes imported source code.', schema({'payload': PAYLOAD}, ['payload']), read=False, network=True),
+    tool('import_system', 'Import a design system', 'Create a new snapshot from a public GitHub repository, allowed local folder, or uploaded token, asset and component source files. When a GitHub library is connected, automatically creates and uploads version 1 to that repository. A failed upload stays queued locally for automatic retry; report pendingUpload instead of claiming it is shared. Never executes imported source code.', schema({'payload': PAYLOAD}, ['payload']), read=False, network=True),
     tool('edit_system', 'Save token edits', 'Save token edits or removals in a local snapshot, preserving revision history. Does not change source files.', schema({'id': ID, 'revision': {'type': 'integer', 'minimum': 0}, 'changes': {'type': 'array', 'minItems': 1, 'items': {'type': 'object'}}}, ['id', 'revision', 'changes']), read=False, destructive=True),
     tool('export_system', 'Export design tokens', 'Read JSON or CSS exports from the current saved revision.', schema({'id': ID, 'file': {'type': 'string', 'enum': ['tokens.json', 'tokens.css', 'system.json']}}, ['id', 'file'])),
 ]

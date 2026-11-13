@@ -154,6 +154,77 @@ class GitHubLibraryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Reconnect'): self.publish()
 
 
+class AutomaticImportTests(unittest.TestCase):
+    setUp=GitHubLibraryTests.setUp
+    tearDown=GitHubLibraryTests.tearDown
+    draft=GitHubLibraryTests.draft
+    publish=GitHubLibraryTests.publish
+    def test_import_uploads_v1_and_publish_pushes_v2(self):
+        created=gd.import_system(ROOT/'examples/starter',self.writer,'Automatic system')
+        self.ident=created['id']
+        self.assertNotIn('pendingUpload',created)
+        self.assertEqual(created['shared']['latestVersion'],1)
+        gl.connect(self.consumer,self.cfg)
+        self.assertEqual(self.draft(self.consumer)['tokens'],created['tokens'])
+        path=created['shared']['path']
+        old=self.remote.files[path+'/tokens.json']
+        gd.edit_system(self.writer,self.ident,{'revision':self.draft()['revision'],'changes':[{'index':0,'value':'#123456'}]})
+        self.assertEqual(self.remote.files[path+'/tokens.json'],old)
+        self.assertEqual(self.publish()['release']['version'],2)
+        gl.sync(self.consumer,force=True)
+        self.assertEqual(self.draft(self.consumer)['tokens'][0]['value'],'#123456')
+        self.assertIn(path+'/releases/1.zip',self.remote.files)
+        self.assertIn(path+'/releases/2.zip',self.remote.files)
+
+    def test_offline_import_retries_frozen_version_without_leaking_draft_edits(self):
+        self.remote.offline=True
+        created=gd.import_system(ROOT/'examples/starter',self.writer,'Offline system')
+        self.ident=created['id'];original=created['tokens'][0]['value']
+        self.assertIn('unavailable',created['pendingUpload']['error'])
+        gd.edit_system(self.writer,self.ident,{'revision':self.draft()['revision'],'changes':[{'index':0,'value':'#abcdef'}]})
+        with self.assertRaisesRegex(ValueError,'waiting to upload'): self.publish()
+        # A subsequent automatic library check retries the durable queue.
+        self.remote.offline=False
+        cfg=gl.config(self.writer);cfg['lastCheck']=0;gl.atomic_json(self.writer/gl.CONFIG,cfg)
+        saved=self.draft();saved['pendingUpload']['lastAttempt']=0;gl.atomic_json(self.writer/'systems'/self.ident/'system.json',saved)
+        self.assertIsNone(gl.sync(self.writer)['error'])
+        gl.connect(self.consumer,self.cfg)
+        self.assertNotIn('pendingUpload',self.draft())
+        self.assertEqual(self.draft()['tokens'][0]['value'],'#abcdef')
+        self.assertEqual(self.draft(self.consumer)['tokens'][0]['value'],original)
+        self.assertEqual(self.draft(self.consumer)['publication']['version'],1)
+
+    def test_retry_is_idempotent_after_commit_before_local_binding(self):
+        self.remote.offline=True
+        created=gd.import_system(ROOT/'examples/starter',self.writer,'Interrupted upload')
+        self.ident=created['id'];pending=self.draft()
+        self.remote.offline=False;gl.retry_uploads(self.writer,force=True)
+        gl.atomic_json(self.writer/'systems'/self.ident/'system.json',pending)
+        count,errors=gl.retry_uploads(self.writer,force=True)
+        self.assertEqual((count,errors),(0,[]))
+        self.assertNotIn('pendingUpload',self.draft())
+        catalog=json.loads(self.remote.files['design-systems/catalog.json'])
+        self.assertEqual(len(catalog['systems']),1)
+        self.assertEqual(len(catalog['systems'][0]['versions']),1)
+
+    def test_pending_import_never_uploads_to_a_different_library(self):
+        self.remote.offline=True
+        created=gd.import_system(ROOT/'examples/starter',self.writer,'Bound destination')
+        self.ident=created['id'];self.remote.offline=False
+        gl.disconnect(self.writer)
+        result=gl.connect(self.writer,{'repository':'other/library'})
+        self.assertIn('Reconnect',result['error'])
+        self.assertFalse(self.remote.files)
+        self.assertEqual(self.draft()['pendingUpload']['repository'],'example/library')
+
+    def test_read_only_import_reports_waiting_without_false_shared_success(self):
+        self.remote.write=False
+        created=gd.import_system(ROOT/'examples/starter',self.writer,'Reader import')
+        self.assertNotIn('shared',created)
+        self.assertIn('read-only',created['pendingUpload']['error'])
+        self.assertFalse(self.remote.files)
+
+
 class GitHubTransportTests(unittest.TestCase):
     def test_commit_preserves_tree_and_uses_non_force_branch_update(self):
         with patch.object(gl,'credentials',return_value='token'):
